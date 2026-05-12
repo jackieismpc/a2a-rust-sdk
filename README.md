@@ -294,3 +294,160 @@ async fn main() {
 - JSON-RPC 错误码保持兼容。
 - SDK 内部错误以 Rust 错误类型区分：网络错误、序列化错误、协议错误、业务错误。
 - HTTP 状态与 JSON-RPC 错误码分别处理，保留更多上下文信息。
+
+## 规范对照与实现状态（基于官网）
+
+参考来源：
+
+- https://a2acn.com/specification/core/
+- https://a2acn.com/specification/discovery/
+- https://a2acn.com/docs/concepts/agentcard/
+- https://a2acn.com/docs/concepts/task/
+- https://a2acn.com/docs/topics/streaming-and-async/
+
+### 字段级对照（精细版）
+
+以下对照仅基于官网当前公开文档所描述的字段与语义，不包含仓库内部 proto 的完整细节。
+
+#### AgentCard
+
+| 规范字段/行为 | 规范描述 | 当前实现 | 差距/备注 |
+| --- | --- | --- | --- |
+| `name`/`description`/`url`/`version` | 基本信息 | 已实现 | OK |
+| `documentationUrl` | 文档链接 | 已实现 | OK |
+| `provider.organization/url` | 提供方信息 | 部分实现（无 `url` 必填约束） | 需补齐结构与校验 |
+| `capabilities.streaming` | 是否支持 SSE | 已实现 | OK |
+| `capabilities.pushNotifications` | 是否支持推送 | 已实现 | OK |
+| `capabilities.stateTransitionHistory` | 状态变更历史能力 | 未实现 | 需补字段与语义 |
+| `authentication.schemes/credentials` | 认证要求 | 未实现 | 需引入认证模型 |
+| `defaultInputModes/defaultOutputModes` | 默认 MIME 模式 | 已实现 | OK |
+| `skills[].id/tags/examples` | 技能元数据 | 未实现 | 需补字段 |
+| `skills[].inputModes/outputModes` | 技能级 MIME 模式 | 已实现 | OK |
+| `/.well-known/agent-card.json` | 发现路径 | 未实现 | 需增加路由与访问控制 |
+
+#### Task / TaskStatus
+
+| 规范字段/行为 | 规范描述 | 当前实现 | 差距/备注 |
+| --- | --- | --- | --- |
+| `id` | 任务标识 | 已实现 | v1.0 语义要求服务端生成 |
+| `sessionId` | 会话标识 | 未实现（使用 `contextId`） | 需对齐命名与语义 |
+| `status.state` | 状态枚举 | 部分实现 | 缺 `working/input-required/unknown` |
+| `status.message` | 状态消息（Message） | 部分实现（字符串） | 需改为 Message |
+| `status.timestamp` | 时间戳 | 已实现 | OK |
+| `history` | 消息历史 | 已实现 | 需按规范结构校验 |
+| `artifacts` | 工件集合 | 已实现 | OK |
+| `metadata` | 扩展元数据 | 已实现（字符串 map） | 规范为任意 JSON |
+
+#### Message
+
+| 规范字段/行为 | 规范描述 | 当前实现 | 差距/备注 |
+| --- | --- | --- | --- |
+| `role` | `user` / `agent` | 已实现（额外支持 `system`） | 需明确兼容策略 |
+| `parts` | Part 数组 | 已实现 | OK |
+| `metadata` | 扩展元数据 | 未实现 | 需补字段 |
+
+#### Part
+
+| 规范字段/行为 | 规范描述 | 当前实现 | 差距/备注 |
+| --- | --- | --- | --- |
+| `type` (MIME) | MIME/类型标识 | 未实现（使用 `kind`） | 需改为 `type` 或双写兼容 |
+| TextPart | 文本 | 已实现 | 需按 MIME 规范化 |
+| FilePart | 文件 URI/Base64/filename | 部分实现（Base64 + filename） | 缺 URI/metadata 支持 |
+| JsonPart | 结构化 JSON | 部分实现（Data） | 字段名需对齐 |
+| Form/IFrame/扩展 | 复杂交互片段 | 未实现 | 需扩展 |
+
+#### Streaming / Async
+
+| 规范字段/行为 | 规范描述 | 当前实现 | 差距/备注 |
+| --- | --- | --- | --- |
+| `message/stream` | SSE 流 | 已实现 | 事件结构需对齐 |
+| `TaskStatusUpdateEvent` | 状态更新事件 | 未实现 | 需实现事件类型 |
+| `TaskArtifactUpdateEvent` | 工件更新事件 | 未实现 | 需实现事件类型 |
+| 结束语义 | 以状态/流关闭判断 | 部分实现 | 当前 start/result/done 为自定义 |
+| 推送通知 | 断线回退机制 | 未实现 | 需配合 push config |
+
+#### 发现与安全
+
+| 规范字段/行为 | 规范描述 | 当前实现 | 差距/备注 |
+| --- | --- | --- | --- |
+| `.well-known/agent-card.json` | 开放发现 | 未实现 | 需路由与访问控制 |
+| 认证与授权 | OAuth/mTLS 等 | 未实现 | 需加入认证策略 |
+| 安全实践 | 最小权限、审计 | 未实现 | 需指南与实现 |
+
+#### 版本与扩展
+
+| 规范字段/行为 | 规范描述 | 当前实现 | 差距/备注 |
+| --- | --- | --- | --- |
+| `A2A-Version` | 版本头 | 未实现 | 需加入请求/响应处理 |
+| `A2A-Extensions` | 扩展声明 | 未实现 | 需扩展体系 |
+
+### 已实现或基本可用
+
+- JSON-RPC over HTTP 基础请求/响应
+- `message/send`、`message/stream`、`tasks/get`、`tasks/cancel`、`tasks/resubscribe`
+- 基础数据模型：`AgentCard`、`AgentTask`、`AgentMessage`、`Artifact`
+- SSE 流式基础通路（start/result/done 事件）
+
+### 部分实现（需补齐细节）
+
+- Task 状态：当前仅 `submitted/running/completed/failed/canceled/rejected`，规范还包含 `working/input-required/unknown`。
+- TaskStatus：规范中的 `message` 应为 `Message`，当前是字符串。
+- Task 结构：规范包含 `sessionId`、更多 metadata 扩展字段，当前缺失或简化。
+- Message：规范支持 metadata，当前未实现。
+- Part：规范以 `type` (MIME) 为核心，支持 text/json/file/form/iframe 等，当前仅 `text/file/data` 且字段名为 `kind`。
+- AgentCard：规范包含 `authentication`、技能 `id/tags/examples`、`capabilities.stateTransitionHistory`，当前未覆盖。
+- Streaming：规范事件类型包含 `TaskStatusUpdateEvent/TaskArtifactUpdateEvent`，当前 SSE 仅输出自定义 start/result/done。
+
+### 未实现或缺失
+
+- 发现机制：`.well-known/agent-card.json` 端点与安全控制策略
+- 推送通知能力与配置（pushNotificationConfig 相关操作）
+- `ListTasks`、`GetExtendedAgentCard` 等核心协议操作
+- 版本与扩展头：`A2A-Version`、`A2A-Extensions`
+- v1.0 语义：流结束不依赖 `final` 字段；任务 ID 由服务端生成
+- 认证与授权的标准化实践（security guide 相关要求）
+- gRPC 绑定（规范支持 JSON-RPC/HTTP + gRPC + REST 绑定）
+
+## 下一阶段改进路线
+
+### Phase 1: 协议对齐与模型完善
+
+- 对齐 TaskState（增加 `working/input-required/unknown`）
+- TaskStatus.message 改为完整 Message 结构
+- Message/Part 增加 metadata 与 MIME type 模式
+- AgentCard 增加 authentication、技能 id/tags/examples、stateTransitionHistory
+- 实现 `.well-known/agent-card.json`
+
+### Phase 2: 传输与事件语义对齐
+
+- SSE 事件结构对齐：`TaskStatusUpdateEvent` / `TaskArtifactUpdateEvent`
+- 加入 pushNotificationConfig 及相关操作
+- 追加 `ListTasks` / `GetExtendedAgentCard`
+- 支持 `A2A-Version` 与 `A2A-Extensions` 头
+
+### Phase 3: 绑定与企业就绪能力
+
+- 引入 gRPC 绑定（基于官方 proto 生成）
+- 安全策略实现：OAuth/mTLS/签名校验
+- 扩展机制的 schema 版本化与兼容性测试
+
+## 性能分析与改进方案
+
+### 现状
+
+- JSON-RPC + HTTP + SSE 实现易调试、生态友好，但序列化与带宽开销高于 protobuf。
+- SSE 为单向流，长任务场景需配合 push/轮询，效率较低。
+
+### 改进方向
+
+- 引入 gRPC 绑定：protobuf + HTTP/2 + 双向流，提升吞吐与延迟表现。
+- 统一使用官方 proto 生成模型，减少手工维护与兼容风险。
+- 客户端与服务端使用连接池、HTTP/2、多路复用。
+- 结构化日志与 tracing，定位序列化与网络瓶颈。
+- 使用压缩与零拷贝（bytes），降低大消息成本。
+
+### 迁移建议
+
+- 对外保持 JSON-RPC 接口，对内引入 gRPC
+- 新增 feature flag 选择 JSON 或 gRPC 绑定
+- 以性能基准作为 gate：JSON 与 gRPC 统一测评后再切换默认
