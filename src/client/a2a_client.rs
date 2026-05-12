@@ -1,16 +1,19 @@
 use bytes::Bytes;
 use reqwest::Client;
 use serde_json::Value;
+use futures_util::StreamExt;
 
 use crate::core::{A2aError, ErrorCode, JsonRpcRequest, JsonRpcResponse, Result};
 use crate::models::{A2aResponse, MessageSendParams, StreamEvent, TaskIdParams};
 
+/// A client for interacting with the A2A server.
 pub struct A2aClient {
     base_url: String,
     client: Client,
 }
 
 impl A2aClient {
+    /// Creates a new A2aClient with the given base URL.
     pub fn new(base_url: impl Into<String>) -> Self {
         let mut base_url = base_url.into();
         if base_url.ends_with('/') {
@@ -20,12 +23,14 @@ impl A2aClient {
         Self { base_url, client }
     }
 
+    /// Sends a message to the A2A server and waits for the response.
     pub async fn send_message(&self, params: MessageSendParams) -> Result<A2aResponse> {
         let request = JsonRpcRequest::new(Value::String(self.request_id()), "message/send", Some(serde_json::to_value(params)?));
         let response = self.post_json(request).await?;
         self.parse_response(response)
     }
 
+    /// Sends a message to the A2A server and streams the response.
     pub async fn send_message_streaming<F>(&self, params: MessageSendParams, mut on_event: F) -> Result<()>
     where
         F: FnMut(StreamEvent),
@@ -55,6 +60,7 @@ impl A2aClient {
         Ok(())
     }
 
+    /// Gets the status of a task by its ID.
     pub async fn get_task(&self, task_id: &str) -> Result<crate::models::AgentTask> {
         let params = TaskIdParams { id: task_id.to_string() };
         let request = JsonRpcRequest::new(Value::String(self.request_id()), "tasks/get", Some(serde_json::to_value(params)?));
@@ -63,6 +69,7 @@ impl A2aClient {
         Ok(serde_json::from_value(value)?)
     }
 
+    /// Cancels a task by its ID.
     pub async fn cancel_task(&self, task_id: &str) -> Result<crate::models::AgentTask> {
         let params = TaskIdParams { id: task_id.to_string() };
         let request = JsonRpcRequest::new(Value::String(self.request_id()), "tasks/cancel", Some(serde_json::to_value(params)?));
@@ -71,6 +78,7 @@ impl A2aClient {
         Ok(serde_json::from_value(value)?)
     }
 
+    /// Subscribes to task events by task ID.
     pub async fn subscribe_to_task<F>(&self, task_id: &str, on_event: F) -> Result<()>
     where
         F: FnMut(StreamEvent),
@@ -80,6 +88,7 @@ impl A2aClient {
         self.send_stream_request(request, on_event).await
     }
 
+    /// Sets the timeout for requests. Note: reqwest client timeout is configured at build time; use builder if needed.
     pub fn set_timeout(&self, _timeout: std::time::Duration) {
         // reqwest client timeout is configured at build time; use builder if needed.
     }
@@ -88,6 +97,7 @@ impl A2aClient {
         format!("req-{}", uuid::Uuid::new_v4())
     }
 
+    /// Internal method to send a streaming request and handle events.
     async fn send_stream_request<F>(&self, request: JsonRpcRequest, mut on_event: F) -> Result<()>
     where
         F: FnMut(StreamEvent),
@@ -159,4 +169,4 @@ fn as_string(bytes: Bytes) -> String {
     String::from_utf8(bytes.to_vec()).unwrap_or_default()
 }
 
-use futures_util::StreamExt;
+
