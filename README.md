@@ -1,6 +1,6 @@
 # A2A Rust SDK 开发文档
 
-本文档描述 A2A (Agent-to-Agent) 协议的 Rust 实现方案。它以本工作区中的 C++ SDK 为参考，但目标是构建更 Rustc 风格、更 Rust 原生、更易于集成到 Rust 服务栈（例如 axum）的版本，而不是 1:1 复刻。
+本文档描述 A2A (Agent-to-Agent) 协议的 Rust 实现方案。目标是构建更 Rustc 风格、更 Rust 原生、更易于集成到 Rust 服务栈（例如 axum）的版本。
 
 ## 目标
 
@@ -8,7 +8,7 @@
 - 保持协议兼容性，但允许在可扩展性、错误处理、类型系统与 API 体验上进行优化。
 - 面向 axum/async 生态提供友好的服务端 API 与中间件式集成方式。
 
-## 协议概要（基于现有实现）
+## 协议概要
 
 ### JSON-RPC 2.0
 
@@ -64,7 +64,7 @@
 
 ## 数据模型与 JSON
 
-以下字段名与 C++ 序列化逻辑一致。Rust 结构体使用 snake_case，但通过 serde rename 保持 JSON 字段名不变。
+Rust 结构体使用 snake_case，但通过 serde rename 保持 JSON 字段名不变。
 
 ### AgentCard
 
