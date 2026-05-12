@@ -1,0 +1,31 @@
+[package]
+name = "a2a-rust-sdk"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "a2a_rust_sdk"
+path = "src/lib.rs"
+
+[dependencies]
+base64 = "0.22"
+bytes = "1.7"
+futures-util = "0.3"
+axum = { version = "0.7", features = ["json", "macros", "tokio"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+time = { version = "0.3", features = ["formatting", "parsing", "serde-well-known"] }
+tokio = { version = "1.37", features = ["macros", "rt-multi-thread"] }
+tokio-stream = "0.1"
+uuid = { version = "1.10", features = ["v4"] }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tokio = { version = "1.37", features = ["macros", "rt-multi-thread", "test-util"] }
+tower = "0.5"
+
+[[bench]]
+name = "serialization"
+harness = false
