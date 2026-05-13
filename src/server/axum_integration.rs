@@ -6,6 +6,8 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, Sse};
 use axum::response::IntoResponse;
 use axum::routing::post;
+use axum::routing::get;
+use axum::http::Request;
 use axum::Json;
 use axum::Router;
 use serde_json::Value;
@@ -22,7 +24,24 @@ pub struct AxumState {
 
 pub fn axum_router(manager: Arc<TaskManager>) -> Router {
     let state = AxumState { manager };
-    Router::new().route("/", post(handle_rpc)).route("/stream", post(handle_stream)).with_state(state)
+    Router::new()
+        .route("/", post(handle_rpc))
+        .route("/stream", post(handle_stream))
+        .route("/.well-known/agent-card.json", get(handle_agent_card))
+        .with_state(state)
+}
+
+async fn handle_agent_card(State(state): State<AxumState>, req: Request<axum::body::Body>) -> impl IntoResponse {
+    // Try to derive a base URL from Host header, fallback to localhost:5000
+    let host = req
+        .headers()
+        .get("host")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("127.0.0.1:5000");
+
+    let url = format!("http://{}", host);
+    let card = state.manager.get_agent_card(&url);
+    (StatusCode::OK, axum::Json(card))
 }
 
 async fn handle_rpc(State(state): State<AxumState>, Json(request): Json<JsonRpcRequest>) -> impl IntoResponse {

@@ -12,6 +12,9 @@ async fn main() {
         Ok(A2aResponse::Message(reply))
     }));
 
+    // Set AgentCard for discovery
+    manager.set_agent_card(a2a_rust_sdk::models::AgentCard::new("Example Agent", "http://127.0.0.1:5000"));
+
     let app = axum_router(Arc::new(manager));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:5000")
         .await

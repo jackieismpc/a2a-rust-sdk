@@ -230,6 +230,8 @@ cargo run --example basic_server
 - 通过 `TaskManager` 处理 `message/send`
 - 将用户消息简单回显成 agent 回复
 
+- 提供发现端点 `GET /.well-known/agent-card.json`，返回服务的 `AgentCard`
+
 ### 2. 运行客户端示例
 
 ```bash

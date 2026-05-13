@@ -15,6 +15,7 @@ pub struct TaskManager {
     on_task_cancelled: Option<TaskCallback>,
     on_task_updated: Option<TaskCallback>,
     on_agent_card_query: Option<AgentCardCallback>,
+    agent_card: Option<AgentCard>,
 }
 
 impl TaskManager {
@@ -27,6 +28,7 @@ impl TaskManager {
             on_task_cancelled: None,
             on_task_updated: None,
             on_agent_card_query: None,
+            agent_card: None,
         }
     }
 
@@ -48,6 +50,10 @@ impl TaskManager {
 
     pub fn set_on_agent_card_query(&mut self, callback: AgentCardCallback) {
         self.on_agent_card_query = Some(callback);
+    }
+
+    pub fn set_agent_card(&mut self, card: AgentCard) {
+        self.agent_card = Some(card);
     }
 
     pub fn create_task(&self, context_id: Option<String>, task_id: Option<String>) -> AgentTask {
@@ -131,6 +137,10 @@ impl TaskManager {
     }
 
     pub fn get_agent_card(&self, agent_url: &str) -> AgentCard {
+        if let Some(card) = &self.agent_card {
+            return card.clone();
+        }
+
         self.on_agent_card_query
             .as_ref()
             .map(|callback| callback(agent_url))
