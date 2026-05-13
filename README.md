@@ -213,6 +213,69 @@ crate::server
 - `update_status(task_id: &str, state: TaskState, message: Option<&AgentMessage>)`
 - `return_artifact(task_id: &str, artifact: Artifact)`
 
+## 使用方法
+
+这个 SDK 当前更适合按“先看示例，再集成到业务工程”的方式使用。最短路径是先运行 examples 里的 client 和 server 示例，再把里面的代码迁移到你的项目中。
+
+### 1. 运行服务端示例
+
+```bash
+cargo run --example basic_server
+```
+
+这个示例会启动一个最小 axum 服务：
+
+- 监听 `127.0.0.1:5000`
+- 暴露 JSON-RPC 入口
+- 通过 `TaskManager` 处理 `message/send`
+- 将用户消息简单回显成 agent 回复
+
+### 2. 运行客户端示例
+
+```bash
+export A2A_BASE_URL=http://127.0.0.1:5000
+cargo run --example basic_client
+```
+
+这个示例会：
+
+- 构造一个最小 `MessageSendParams`
+- 调用 `A2aClient::send_message`
+- 打印返回的 `A2aResponse`
+
+### 3. 在自己的项目里集成
+
+client 端通常这样接入：
+
+```rust
+use a2a_rust_sdk::client::A2aClient;
+use a2a_rust_sdk::models::{AgentMessage, MessagePart, MessageRole, MessageSendParams};
+
+let client = A2aClient::new("http://127.0.0.1:5000");
+```
+
+server 端通常这样接入：
+
+```rust
+use a2a_rust_sdk::models::{A2aResponse, MessageRole};
+use a2a_rust_sdk::server::{axum_router, TaskManager};
+use std::sync::Arc;
+
+let mut manager = TaskManager::new(None);
+manager.set_on_message_received(Arc::new(|params| {
+  let mut reply = params.message;
+  reply.role = MessageRole::Agent;
+  Ok(A2aResponse::Message(reply))
+}));
+```
+
+### 4. 建议的调用顺序
+
+1. 先用 `AgentCard` 描述服务能力。
+2. 再用 `A2aClient` 发起 `message/send` 或 `message/stream`。
+3. 长任务时用 `tasks/get`、`tasks/resubscribe`、`tasks/cancel` 管理生命周期。
+4. 服务端通过 `TaskManager` 把业务逻辑、任务状态和存储解耦。
+
 ## axum 集成示例
 
 ```rust
