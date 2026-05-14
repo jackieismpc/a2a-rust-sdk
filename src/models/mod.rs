@@ -8,7 +8,7 @@ mod message_send_params;
 mod task_status;
 
 pub use a2a_response::{A2aResponse, StreamEvent};
-pub use agent_card::{AgentCapabilities, AgentCard, AgentProvider, AgentSkill, AgentTransport};
+pub use agent_card::{AgentAuthentication, AgentCapabilities, AgentCard, AgentProvider, AgentSkill, AgentTransport};
 pub use agent_message::{AgentMessage, MessageRole};
 pub use agent_task::AgentTask;
 pub use artifact::Artifact;

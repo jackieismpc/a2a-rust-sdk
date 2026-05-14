@@ -45,6 +45,13 @@ pub struct AgentProvider {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentAuthentication {
+    pub schemes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credentials: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AgentCard {
     pub name: String,
     pub description: String,
@@ -53,6 +60,8 @@ pub struct AgentCard {
     #[serde(rename = "protocolVersion")]
     pub protocol_version: String,
     pub capabilities: AgentCapabilities,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authentication: Option<AgentAuthentication>,
     #[serde(rename = "defaultInputModes", default)]
     pub default_input_modes: Vec<String>,
     #[serde(rename = "defaultOutputModes", default)]
@@ -78,6 +87,7 @@ impl AgentCard {
             version: "1.0.0".to_string(),
             protocol_version: "0.3.0".to_string(),
             capabilities: AgentCapabilities::default(),
+            authentication: None,
             default_input_modes: vec!["text".to_string()],
             default_output_modes: vec!["text".to_string()],
             skills: Vec::new(),
@@ -86,5 +96,13 @@ impl AgentCard {
             documentation_url: None,
             provider: None,
         }
+    }
+
+    pub fn redacted(&self) -> Self {
+        let mut card = self.clone();
+        if let Some(authentication) = &mut card.authentication {
+            authentication.credentials = None;
+        }
+        card
     }
 }

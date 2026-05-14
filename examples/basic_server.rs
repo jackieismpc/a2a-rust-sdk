@@ -13,10 +13,12 @@ async fn main() {
     }));
 
     // Set AgentCard for discovery
-    manager.set_agent_card(a2a_rust_sdk::models::AgentCard::new(
-        "Example Agent",
-        "http://127.0.0.1:5000",
-    ));
+    let mut card = a2a_rust_sdk::models::AgentCard::new("Example Agent", "http://127.0.0.1:5000");
+    card.authentication = Some(a2a_rust_sdk::models::AgentAuthentication {
+        schemes: vec!["Bearer".to_string()],
+        credentials: Some("local-dev-token".to_string()),
+    });
+    manager.set_agent_card(card);
 
     let app = axum_router(Arc::new(manager));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:5000")

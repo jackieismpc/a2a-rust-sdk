@@ -1,17 +1,23 @@
 use std::convert::Infallible;
 use std::sync::Arc;
-
+use std::time::{Duration, Instant};
 use axum::Json;
 use axum::Router;
 use axum::extract::State;
+use axum::http::HeaderValue;
 use axum::http::Request;
 use axum::http::StatusCode;
+use axum::middleware;
+use axum::middleware::Next;
 use axum::response::IntoResponse;
+use axum::response::Response;
 use axum::response::sse::{Event, Sse};
 use axum::routing::get;
 use axum::routing::post;
 use serde_json::Value;
+use tower_http::set_header::SetResponseHeaderLayer;
 use tokio_stream::iter;
+use tokio::sync::Mutex;
 
 use crate::core::{A2aError, ErrorCode, JsonRpcError, JsonRpcRequest, JsonRpcResponse};
 use crate::models::{A2aResponse, MessageSendParams, TaskIdParams};
@@ -24,10 +30,42 @@ pub struct AxumState {
 
 pub fn axum_router(manager: Arc<TaskManager>) -> Router {
     let state = AxumState { manager };
+    let cache_seconds = std::env::var("A2A_DISCOVERY_CACHE_SECONDS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(60);
+    let cache_value = format!("public, max-age={}", cache_seconds);
+    let cache_header = HeaderValue::from_str(&cache_value)
+        .unwrap_or_else(|_| HeaderValue::from_static("public, max-age=60"));
+    let cache_layer = SetResponseHeaderLayer::if_not_present(
+        axum::http::header::CACHE_CONTROL,
+        cache_header,
+    );
+
+    let rate_limit = std::env::var("A2A_DISCOVERY_RPS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(5);
+    let limiter = Arc::new(SimpleRateLimiter::new(rate_limit, Duration::from_secs(1)));
+    let rate_layer = middleware::from_fn(move |req, next: Next| {
+        let limiter = limiter.clone();
+        async move {
+            if !limiter.allow().await {
+                return Ok::<Response, Infallible>(StatusCode::TOO_MANY_REQUESTS.into_response());
+            }
+            Ok(next.run(req).await)
+        }
+    });
+
+    let discovery = Router::new().route(
+        "/.well-known/agent-card.json",
+        get(handle_agent_card).layer(cache_layer).layer(rate_layer),
+    );
+
     Router::new()
         .route("/", post(handle_rpc))
         .route("/stream", post(handle_stream))
-        .route("/.well-known/agent-card.json", get(handle_agent_card))
+        .merge(discovery)
         .with_state(state)
 }
 
@@ -35,16 +73,97 @@ async fn handle_agent_card(
     State(state): State<AxumState>,
     req: Request<axum::body::Body>,
 ) -> impl IntoResponse {
-    // Try to derive a base URL from Host header, fallback to localhost:5000
-    let host = req
-        .headers()
-        .get("host")
-        .and_then(|h| h.to_str().ok())
-        .unwrap_or("127.0.0.1:5000");
+    let base_url = infer_base_url(&req);
+    let card = state.manager.get_agent_card(&base_url);
+    let authorized = is_authorized(&req);
+    let response_card = if authorized { card } else { card.redacted() };
+    (StatusCode::OK, axum::Json(response_card))
+}
 
-    let url = format!("http://{}", host);
-    let card = state.manager.get_agent_card(&url);
-    (StatusCode::OK, axum::Json(card))
+fn infer_base_url(req: &Request<axum::body::Body>) -> String {
+    let headers = req.headers();
+
+    let scheme = header_value(headers, "x-forwarded-proto")
+        .or_else(|| req.uri().scheme_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| "http".to_string());
+
+    let mut host = header_value(headers, "x-forwarded-host")
+        .or_else(|| header_value(headers, "host"))
+        .unwrap_or_else(|| "127.0.0.1:5000".to_string());
+
+    if !host.contains(':') {
+        if let Some(port) = header_value(headers, "x-forwarded-port") {
+            host = format!("{}:{}", host, port);
+        }
+    }
+
+    format!("{}://{}", scheme, host)
+}
+
+fn is_authorized(req: &Request<axum::body::Body>) -> bool {
+    let token = match std::env::var("A2A_AGENT_CARD_TOKEN") {
+        Ok(value) if !value.is_empty() => value,
+        _ => return false,
+    };
+
+    let header = req
+        .headers()
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+
+    let bearer = header.strip_prefix("Bearer ").unwrap_or("");
+    bearer == token
+}
+
+struct SimpleRateLimiter {
+    max: u64,
+    window: Duration,
+    state: Mutex<RateLimitState>,
+}
+
+struct RateLimitState {
+    window_start: Instant,
+    count: u64,
+}
+
+impl SimpleRateLimiter {
+    fn new(max: u64, window: Duration) -> Self {
+        Self {
+            max,
+            window,
+            state: Mutex::new(RateLimitState {
+                window_start: Instant::now(),
+                count: 0,
+            }),
+        }
+    }
+
+    async fn allow(&self) -> bool {
+        if self.max == 0 {
+            return true;
+        }
+
+        let mut state = self.state.lock().await;
+        if state.window_start.elapsed() >= self.window {
+            state.window_start = Instant::now();
+            state.count = 0;
+        }
+
+        if state.count >= self.max {
+            return false;
+        }
+
+        state.count += 1;
+        true
+    }
+}
+
+fn header_value(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.split(',').next().unwrap_or(value).trim().to_string())
 }
 
 async fn handle_rpc(
