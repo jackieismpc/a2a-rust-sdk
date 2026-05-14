@@ -1,5 +1,5 @@
 use a2a_rust_sdk::models::{A2aResponse, MessageRole};
-use a2a_rust_sdk::server::{axum_router, TaskManager};
+use a2a_rust_sdk::server::{TaskManager, axum_router};
 use std::sync::Arc;
 
 #[tokio::main]
@@ -13,7 +13,10 @@ async fn main() {
     }));
 
     // Set AgentCard for discovery
-    manager.set_agent_card(a2a_rust_sdk::models::AgentCard::new("Example Agent", "http://127.0.0.1:5000"));
+    manager.set_agent_card(a2a_rust_sdk::models::AgentCard::new(
+        "Example Agent",
+        "http://127.0.0.1:5000",
+    ));
 
     let app = axum_router(Arc::new(manager));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:5000")

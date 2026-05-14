@@ -1,7 +1,9 @@
-use a2a_rust_sdk::models::{A2aResponse, AgentMessage, MessageRole, MessageSendParams, MessagePart};
-use a2a_rust_sdk::server::{axum_router, TaskManager};
-use axum::http::{Request, StatusCode};
+use a2a_rust_sdk::models::{
+    A2aResponse, AgentMessage, MessagePart, MessageRole, MessageSendParams,
+};
+use a2a_rust_sdk::server::{TaskManager, axum_router};
 use axum::body::Body;
+use axum::http::{Request, StatusCode};
 use serde_json::json;
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -23,7 +25,9 @@ async fn axum_message_send_ok() {
             context_id: None,
             task_id: None,
             role: MessageRole::User,
-            parts: vec![MessagePart::Text { text: "hi".to_string() }],
+            parts: vec![MessagePart::Text {
+                text: "hi".to_string(),
+            }],
         },
         history_length: None,
         context_id: None,

@@ -1,12 +1,12 @@
+use a2a_rust_sdk::models::AgentCard;
 use a2a_rust_sdk::server::TaskManager;
 use a2a_rust_sdk::server::axum_router;
-use a2a_rust_sdk::models::AgentCard;
 use axum::body::Body;
-use axum::http::Request;
 use axum::http::Method;
+use axum::http::Request;
 use axum::http::StatusCode;
-use tower::ServiceExt;
 use std::sync::Arc;
+use tower::ServiceExt;
 
 #[tokio::test]
 async fn serve_agent_card() {

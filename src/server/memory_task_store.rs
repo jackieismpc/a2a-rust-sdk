@@ -69,7 +69,11 @@ impl TaskStore for MemoryTaskStore {
     }
 
     fn delete_task(&self, task_id: &str) -> bool {
-        self.inner.lock().expect("store lock").remove(task_id).is_some()
+        self.inner
+            .lock()
+            .expect("store lock")
+            .remove(task_id)
+            .is_some()
     }
 
     fn task_exists(&self, task_id: &str) -> bool {

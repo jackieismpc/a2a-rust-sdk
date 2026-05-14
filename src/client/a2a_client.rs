@@ -1,7 +1,7 @@
 use bytes::Bytes;
+use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::Value;
-use futures_util::StreamExt;
 
 use crate::core::{A2aError, ErrorCode, JsonRpcRequest, JsonRpcResponse, Result};
 use crate::models::{A2aResponse, MessageSendParams, StreamEvent, TaskIdParams};
@@ -25,17 +25,29 @@ impl A2aClient {
 
     /// Sends a message to the A2A server and waits for the response.
     pub async fn send_message(&self, params: MessageSendParams) -> Result<A2aResponse> {
-        let request = JsonRpcRequest::new(Value::String(self.request_id()), "message/send", Some(serde_json::to_value(params)?));
+        let request = JsonRpcRequest::new(
+            Value::String(self.request_id()),
+            "message/send",
+            Some(serde_json::to_value(params)?),
+        );
         let response = self.post_json(request).await?;
         self.parse_response(response)
     }
 
     /// Sends a message to the A2A server and streams the response.
-    pub async fn send_message_streaming<F>(&self, params: MessageSendParams, mut on_event: F) -> Result<()>
+    pub async fn send_message_streaming<F>(
+        &self,
+        params: MessageSendParams,
+        mut on_event: F,
+    ) -> Result<()>
     where
         F: FnMut(StreamEvent),
     {
-        let request = JsonRpcRequest::new(Value::String(self.request_id()), "message/stream", Some(serde_json::to_value(params)?));
+        let request = JsonRpcRequest::new(
+            Value::String(self.request_id()),
+            "message/stream",
+            Some(serde_json::to_value(params)?),
+        );
         let response = self
             .client
             .post(&self.base_url)
@@ -62,8 +74,14 @@ impl A2aClient {
 
     /// Gets the status of a task by its ID.
     pub async fn get_task(&self, task_id: &str) -> Result<crate::models::AgentTask> {
-        let params = TaskIdParams { id: task_id.to_string() };
-        let request = JsonRpcRequest::new(Value::String(self.request_id()), "tasks/get", Some(serde_json::to_value(params)?));
+        let params = TaskIdParams {
+            id: task_id.to_string(),
+        };
+        let request = JsonRpcRequest::new(
+            Value::String(self.request_id()),
+            "tasks/get",
+            Some(serde_json::to_value(params)?),
+        );
         let response = self.post_json(request).await?;
         let value = self.expect_result(response)?;
         Ok(serde_json::from_value(value)?)
@@ -71,8 +89,14 @@ impl A2aClient {
 
     /// Cancels a task by its ID.
     pub async fn cancel_task(&self, task_id: &str) -> Result<crate::models::AgentTask> {
-        let params = TaskIdParams { id: task_id.to_string() };
-        let request = JsonRpcRequest::new(Value::String(self.request_id()), "tasks/cancel", Some(serde_json::to_value(params)?));
+        let params = TaskIdParams {
+            id: task_id.to_string(),
+        };
+        let request = JsonRpcRequest::new(
+            Value::String(self.request_id()),
+            "tasks/cancel",
+            Some(serde_json::to_value(params)?),
+        );
         let response = self.post_json(request).await?;
         let value = self.expect_result(response)?;
         Ok(serde_json::from_value(value)?)
@@ -83,8 +107,14 @@ impl A2aClient {
     where
         F: FnMut(StreamEvent),
     {
-        let params = TaskIdParams { id: task_id.to_string() };
-        let request = JsonRpcRequest::new(Value::String(self.request_id()), "tasks/resubscribe", Some(serde_json::to_value(params)?));
+        let params = TaskIdParams {
+            id: task_id.to_string(),
+        };
+        let request = JsonRpcRequest::new(
+            Value::String(self.request_id()),
+            "tasks/resubscribe",
+            Some(serde_json::to_value(params)?),
+        );
         self.send_stream_request(request, on_event).await
     }
 
@@ -168,5 +198,3 @@ impl A2aClient {
 fn as_string(bytes: Bytes) -> String {
     String::from_utf8(bytes.to_vec()).unwrap_or_default()
 }
-
-

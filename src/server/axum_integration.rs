@@ -1,15 +1,15 @@
 use std::convert::Infallible;
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::sse::{Event, Sse};
-use axum::response::IntoResponse;
-use axum::routing::post;
-use axum::routing::get;
-use axum::http::Request;
 use axum::Json;
 use axum::Router;
+use axum::extract::State;
+use axum::http::Request;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use axum::response::sse::{Event, Sse};
+use axum::routing::get;
+use axum::routing::post;
 use serde_json::Value;
 use tokio_stream::iter;
 
@@ -31,7 +31,10 @@ pub fn axum_router(manager: Arc<TaskManager>) -> Router {
         .with_state(state)
 }
 
-async fn handle_agent_card(State(state): State<AxumState>, req: Request<axum::body::Body>) -> impl IntoResponse {
+async fn handle_agent_card(
+    State(state): State<AxumState>,
+    req: Request<axum::body::Body>,
+) -> impl IntoResponse {
     // Try to derive a base URL from Host header, fallback to localhost:5000
     let host = req
         .headers()
@@ -44,12 +47,18 @@ async fn handle_agent_card(State(state): State<AxumState>, req: Request<axum::bo
     (StatusCode::OK, axum::Json(card))
 }
 
-async fn handle_rpc(State(state): State<AxumState>, Json(request): Json<JsonRpcRequest>) -> impl IntoResponse {
+async fn handle_rpc(
+    State(state): State<AxumState>,
+    Json(request): Json<JsonRpcRequest>,
+) -> impl IntoResponse {
     let result = match request.method.as_str() {
         "message/send" => handle_message_send(&state, request.params),
         "tasks/get" => handle_task_get(&state, request.params),
         "tasks/cancel" => handle_task_cancel(&state, request.params),
-        _ => Err(A2aError::from_code(ErrorCode::MethodNotFound, "method not found")),
+        _ => Err(A2aError::from_code(
+            ErrorCode::MethodNotFound,
+            "method not found",
+        )),
     };
 
     let response = match result {
@@ -67,14 +76,19 @@ async fn handle_stream(
     let result = match request.method.as_str() {
         "message/stream" => handle_message_stream(&state, request.params).await,
         "tasks/resubscribe" => handle_task_resubscribe(&state, request.params),
-        _ => Err(A2aError::from_code(ErrorCode::MethodNotFound, "method not found")),
+        _ => Err(A2aError::from_code(
+            ErrorCode::MethodNotFound,
+            "method not found",
+        )),
     };
 
     match result {
         Ok(payloads) => {
-            let events = iter(payloads.into_iter().map(|payload| {
-                Ok::<Event, Infallible>(Event::default().data(payload))
-            }));
+            let events = iter(
+                payloads
+                    .into_iter()
+                    .map(|payload| Ok::<Event, Infallible>(Event::default().data(payload))),
+            );
             Sse::new(events).into_response()
         }
         Err(error) => {
@@ -85,7 +99,8 @@ async fn handle_stream(
 }
 
 fn handle_message_send(state: &AxumState, params: Option<Value>) -> crate::core::Result<Value> {
-    let params = params.ok_or_else(|| A2aError::from_code(ErrorCode::InvalidParams, "missing params"))?;
+    let params =
+        params.ok_or_else(|| A2aError::from_code(ErrorCode::InvalidParams, "missing params"))?;
     let payload: MessageSendParams = serde_json::from_value(params)?;
     let response = state.manager.send_message(payload)?;
     to_value(response)
@@ -95,7 +110,8 @@ async fn handle_message_stream(
     state: &AxumState,
     params: Option<Value>,
 ) -> crate::core::Result<Vec<String>> {
-    let params = params.ok_or_else(|| A2aError::from_code(ErrorCode::InvalidParams, "missing params"))?;
+    let params =
+        params.ok_or_else(|| A2aError::from_code(ErrorCode::InvalidParams, "missing params"))?;
     let payload: MessageSendParams = serde_json::from_value(params)?;
     let response = state.manager.send_message(payload)?;
     Ok(vec![
@@ -106,21 +122,27 @@ async fn handle_message_stream(
 }
 
 fn handle_task_get(state: &AxumState, params: Option<Value>) -> crate::core::Result<Value> {
-    let params = params.ok_or_else(|| A2aError::from_code(ErrorCode::InvalidParams, "missing params"))?;
+    let params =
+        params.ok_or_else(|| A2aError::from_code(ErrorCode::InvalidParams, "missing params"))?;
     let payload: TaskIdParams = serde_json::from_value(params)?;
     let task = state.manager.get_task(&payload.id)?;
     Ok(serde_json::to_value(task)?)
 }
 
 fn handle_task_cancel(state: &AxumState, params: Option<Value>) -> crate::core::Result<Value> {
-    let params = params.ok_or_else(|| A2aError::from_code(ErrorCode::InvalidParams, "missing params"))?;
+    let params =
+        params.ok_or_else(|| A2aError::from_code(ErrorCode::InvalidParams, "missing params"))?;
     let payload: TaskIdParams = serde_json::from_value(params)?;
     let task = state.manager.cancel_task(&payload.id)?;
     Ok(serde_json::to_value(task)?)
 }
 
-fn handle_task_resubscribe(state: &AxumState, params: Option<Value>) -> crate::core::Result<Vec<String>> {
-    let params = params.ok_or_else(|| A2aError::from_code(ErrorCode::InvalidParams, "missing params"))?;
+fn handle_task_resubscribe(
+    state: &AxumState,
+    params: Option<Value>,
+) -> crate::core::Result<Vec<String>> {
+    let params =
+        params.ok_or_else(|| A2aError::from_code(ErrorCode::InvalidParams, "missing params"))?;
     let payload: TaskIdParams = serde_json::from_value(params)?;
     let task = state.manager.get_task(&payload.id)?;
     Ok(vec![
@@ -136,7 +158,11 @@ fn to_value(response: A2aResponse) -> crate::core::Result<Value> {
 
 fn to_jsonrpc_error(error: A2aError) -> JsonRpcError {
     match error {
-        A2aError::Rpc { code, message, data } => JsonRpcError {
+        A2aError::Rpc {
+            code,
+            message,
+            data,
+        } => JsonRpcError {
             code,
             message,
             data: data.map(Value::String),

@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use crate::core::{A2aError, ErrorCode, Result};
-use crate::models::{A2aResponse, AgentCard, AgentMessage, AgentTask, AgentTaskStatus, MessageSendParams, TaskState};
+use crate::models::{
+    A2aResponse, AgentCard, AgentMessage, AgentTask, AgentTaskStatus, MessageSendParams, TaskState,
+};
 use crate::server::{MemoryTaskStore, TaskStore};
 
 pub type MessageCallback = Arc<dyn Fn(MessageSendParams) -> Result<A2aResponse> + Send + Sync>;
@@ -102,8 +104,11 @@ impl TaskManager {
             self.task_store
                 .add_history_message(task_id, message.clone());
         }
-        self.task_store
-            .update_status(task_id, status, message.map(|m| serde_json::to_string(m).unwrap_or_default()));
+        self.task_store.update_status(
+            task_id,
+            status,
+            message.map(|m| serde_json::to_string(m).unwrap_or_default()),
+        );
         if let Ok(task) = self.get_task(task_id) {
             if let Some(callback) = &self.on_task_updated {
                 callback(task);
@@ -123,7 +128,10 @@ impl TaskManager {
     pub fn send_message(&self, params: MessageSendParams) -> Result<A2aResponse> {
         if let Some(task_id) = params.message.task_id.as_deref() {
             if !self.task_store.task_exists(task_id) {
-                return Err(A2aError::from_code(ErrorCode::TaskNotFound, "task not found"));
+                return Err(A2aError::from_code(
+                    ErrorCode::TaskNotFound,
+                    "task not found",
+                ));
             }
             self.task_store
                 .add_history_message(task_id, params.message.clone());

@@ -9,8 +9,12 @@ fn agent_message_round_trip() {
         task_id: Some("task-1".to_string()),
         role: MessageRole::User,
         parts: vec![
-            MessagePart::Text { text: "hello".to_string() },
-            MessagePart::Data { data: json!({"key": "value"}) },
+            MessagePart::Text {
+                text: "hello".to_string(),
+            },
+            MessagePart::Data {
+                data: json!({"key": "value"}),
+            },
         ],
     };
 
