@@ -265,6 +265,84 @@ export A2A_AGENT_CARD_TOKEN=local-dev-token
 curl -H "Authorization: Bearer local-dev-token" http://127.0.0.1:5000/.well-known/agent-card.json
 ```
 
+### mTLS/鉴权的 axum 中间件示例
+
+下面示例演示两层保护：
+
+1) 传输层使用 mTLS
+2) 应用层使用 Bearer Token 中间件
+
+说明：mTLS 需要额外依赖 `axum-server` + `rustls`，示例仅展示集成方式。
+
+```rust
+use axum::{middleware, Router};
+use axum::response::Response;
+use axum::http::StatusCode;
+use axum::middleware::Next;
+
+fn bearer_guard(expected: String) -> impl Clone + Send + 'static + Fn(axum::http::Request<axum::body::Body>, Next) -> _ {
+  move |req, next| {
+    let expected = expected.clone();
+    async move {
+      let header = req
+        .headers()
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+
+      let ok = header.strip_prefix("Bearer ") == Some(expected.as_str());
+      if !ok {
+        return Ok::<Response, std::convert::Infallible>(StatusCode::UNAUTHORIZED.into_response());
+      }
+
+      Ok(next.run(req).await)
+    }
+  }
+}
+
+let app = Router::new()
+  .merge(axum_router(manager))
+  .layer(middleware::from_fn(bearer_guard("your-token".to_string())));
+```
+
+如果你启用 mTLS（示意）：
+
+```rust
+use axum_server::tls_rustls::RustlsConfig;
+
+// 需要在证书链中启用 client auth，比如 AllowAnyAuthenticatedClient
+let tls_config = RustlsConfig::from_pem_file("cert.pem", "key.pem")
+  .await
+  .expect("load tls");
+
+axum_server::bind_rustls("0.0.0.0:5000".parse().unwrap(), tls_config)
+  .serve(app.into_make_service())
+  .await
+  .expect("serve");
+```
+
+### mTLS 可运行示例
+
+生成证书（使用 openssl）：
+
+```bash
+./scripts/generate_mtls_certs.sh
+```
+
+启动 mTLS 服务端：
+
+```bash
+cargo run --example mtls_server
+```
+
+另开一个终端，启动 mTLS 客户端：
+
+```bash
+cargo run --example mtls_client
+```
+
+默认监听地址：`https://127.0.0.1:5443`。
+
 ### 发现端点的缓存与限流
 
 发现端点默认加上缓存头并启用速率限制，可通过环境变量调整：
